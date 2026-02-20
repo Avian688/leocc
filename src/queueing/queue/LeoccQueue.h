@@ -25,13 +25,21 @@ namespace queueing {
 class LeoccQueue : public PacketQueue {
 protected:
     cPacketQueue icmpQueue;
+
 protected:
     virtual void initialize(int stage) override;
-
     virtual bool isIcmpOverloaded() const;
+    virtual Packet *getIcmpPacket(int index) const;
+
+    bool bothQueuesEmpty() const;
+    Packet *peekPreferredPacket() const;  // icmpQueue first, then queue
+
 public:
     virtual void pushPacket(Packet *packet, cGate *gate) override;
     virtual Packet *pullPacket(cGate *gate) override;
+
+    virtual bool canPullSomePacket(cGate *gate) const override;
+    virtual Packet *canPullPacket(cGate *gate) const override;
 
 };
 

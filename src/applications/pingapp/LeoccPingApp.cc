@@ -47,6 +47,9 @@ namespace inet {
 
 Define_Module(LeoccPingApp);
 
+
+simsignal_t LeoccPingApp::responseIntervalSignal = registerSignal("responseInterval");
+
 void LeoccPingApp::initialize(int stage)
 {
     PingApp::initialize(stage);
@@ -82,9 +85,6 @@ void LeoccPingApp::initialize(int stage)
 
 void LeoccPingApp::processPingResponse(int originatorId, int seqNo, Packet *packet)
 {
-    if(simTime() > 2.5 && simTime() < 2.55){
-        return; //ignore ping packets (presume lost by reconfiguration).
-    }
     const auto& pingPayload = packet->peekDataAt(B(0), packet->getDataLength());
     if (originatorId != pid) {
         EV_WARN << "Received response was not sent by this application, dropping packet\n";
@@ -108,7 +108,7 @@ void LeoccPingApp::processPingResponse(int originatorId, int seqNo, Packet *pack
         int idx = seqNo % PING_HISTORY_SIZE;
         rtt = simTime() - sendTimeHistory[idx];
 
-        leoccMain->setMinRtt(rtt);
+        //leoccMain->setMinRtt(rtt);
 
         isDup = pongReceived[idx];
         pongReceived[idx] = true;
@@ -147,6 +147,7 @@ void LeoccPingApp::processPingResponse(int originatorId, int seqNo, Packet *pack
                 reconfiguration_trigger_time_ms = cur_time_ms;
                 reconfiguration_rtt_ms = rtt;
             }
+            emit(responseIntervalSignal, (simTime() - last_time));
         }
     last_time = simTime();
     }

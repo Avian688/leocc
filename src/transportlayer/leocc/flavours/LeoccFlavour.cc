@@ -810,7 +810,7 @@ void LeoccFlavour::receivedDuplicateAck()
 
 void LeoccFlavour::leoccMain()
 {
-    simtime_t min_rtt_us =  dynamic_cast<tcp::Leocc*>(conn->getTcpMain())->getMinRtt();
+    //simtime_t min_rtt_us =  dynamic_cast<tcp::Leocc*>(conn->getTcpMain())->getMinRtt();
     global_reconfiguration_trigger = dynamic_cast<tcp::Leocc*>(conn->getTcpMain())->getReconfigurationState();
 
     state->m_delivered = dynamic_cast<TcpPacedConnection*>(conn)->getDelivered();
@@ -837,7 +837,7 @@ void LeoccFlavour::leoccMain()
 
     state->use_max_filter = true;
 
-    if (min_rtt_fluctuation > 0 && state->rtt_hat_post >= delta_rtt + min_rtt_us + min_rtt_fluctuation && !state->local_reconfiguration_trigger && m_state == LeoccMode_t::LEOCC_DYNAMIC_CRUISE)
+    if (min_rtt_fluctuation > 0 && state->rtt_hat_post >= delta_rtt + state->m_minRtt + min_rtt_fluctuation && !state->local_reconfiguration_trigger && m_state == LeoccMode_t::LEOCC_DYNAMIC_CRUISE)
     {
         state->use_max_filter = false;
         state->useBwHatPost = true;

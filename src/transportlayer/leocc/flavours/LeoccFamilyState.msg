@@ -135,7 +135,7 @@ struct LeoccFamilyStateVariables extends TcpTahoeRenoFamilyStateVariables
     uint32_t bw_probe_up_rounds = 5;
     
     
-    const simtime_t leocc_min_rtt_win_sec = 10;
+    const simtime_t leocc_min_rtt_win_sec = 20;
 
     const simtime_t leocc_probe_rtt_win  = 5;
 

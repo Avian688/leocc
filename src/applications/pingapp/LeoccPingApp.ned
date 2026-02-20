@@ -48,5 +48,7 @@ simple LeoccPingApp extends PingApp
 {
 	parameters:
     	@class("inet::LeoccPingApp");   
+    	@signal[responseInterval](type=simtime_t);
+    	@statistic[responseInterval](title="Response Interval"; unit=s; record=histogram,vector; interpolationmode=none);
 }
 

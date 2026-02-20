@@ -40,6 +40,8 @@ class INET_API LeoccPingApp : public PingApp
      simtime_t reconfiguration_rtt_ms;
      simtime_t reconfiguration_min_rtt;
      simtime_t reconfiguration_max_rtt;
+
+     static simsignal_t responseIntervalSignal;
   protected:
      virtual void initialize(int stage) override;
 

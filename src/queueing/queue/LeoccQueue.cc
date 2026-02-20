@@ -18,7 +18,8 @@
 #include <inet/common/PacketEventTag.h>
 #include <inet/common/TimeTag.h>
 #include <inet/networklayer/common/NetworkInterface.h>
-#include "inet/common/ProtocolTag_m.h"
+#include <inet/common/ProtocolTag_m.h>
+#include <inet/networklayer/ipv4/Icmp.h>
 #include "LeoccQueue.h"
 
 namespace inet {
@@ -51,15 +52,23 @@ void LeoccQueue::pushPacket(Packet *packet, cGate *gate)
             packet->setBackOffset(B(ipv4Header->getTotalLengthField()) - ipv4Header->getChunkLength());
 
     if(ipv4Header->getProtocolId() == 1){ // 1 = ICMP data
-        isIcmp = true;
-        icmpQueue.insert(packet);
-        if (packetDropperFunction != nullptr) {
-            while (isIcmpOverloaded()) {
-                auto packet = packetDropperFunction->selectPacket(this);
-                EV_INFO << "Dropping packet" << EV_FIELD(packet) << EV_ENDL;
-                icmpQueue.remove(packet);
-                dropPacket(packet, QUEUE_OVERFLOW);
-            }
+        const auto& icmpmsg = packet->peekAtFront<IcmpHeader>();
+        switch(icmpmsg->getType()) {
+            case ICMP_ECHO_REQUEST:
+            case ICMP_ECHO_REPLY:
+                isIcmp = true;
+                icmpQueue.insert(packet);
+                if (buffer != nullptr)
+                    buffer->addPacket(packet);
+                else if (packetDropperFunction != nullptr) {
+                    while (isIcmpOverloaded()) {
+                        auto packet = getIcmpPacket(icmpQueue.getLength() - 1);
+                        EV_INFO << "Dropping packet" << EV_FIELD(packet) << EV_ENDL;
+                        icmpQueue.remove(packet);
+                        dropPacket(packet, QUEUE_OVERFLOW);
+                    }
+                }
+                break;
         }
     }
 
@@ -81,8 +90,14 @@ void LeoccQueue::pushPacket(Packet *packet, cGate *gate)
         ASSERT(!isOverloaded());
     }
 
-    if (collector != nullptr && (getNumPackets() != 0 || icmpQueue.getLength() != 0))
+    if (collector != nullptr && (getNumPackets() != 0 || icmpQueue.getLength() != 0)){
+//        if(simTime() > 30){
+//            std::cout << "\n HANDLE PULL BEING CALLED AT " << simTime() << endl;
+//            std::cout << "\n getNumPackets() "  << getNumPackets() << endl;
+//            std::cout << "\n icmpQueue.getLength()" << icmpQueue.getLength() << endl;
+//        }
         collector->handleCanPullPacketChanged(outputGate->getPathEndGate());
+    }
 
     cNamedObject packetPushEndedDetails("atomicOperationEnded");
     emit(packetPushEndedSignal, nullptr, &packetPushEndedDetails);
@@ -96,6 +111,14 @@ Packet *LeoccQueue::pullPacket(cGate *gate)
         auto packet = check_and_cast<Packet *>(icmpQueue.front());
         EV_INFO << "Pulling packet" << EV_FIELD(packet) << EV_ENDL;
         icmpQueue.pop();
+
+        auto queueingTime = simTime() - packet->getArrivalTime();
+        auto packetEvent = new PacketQueuedEvent();
+        packetEvent->setQueuePacketLength(icmpQueue.getLength());
+        packetEvent->setQueueDataLength(b(icmpQueue.getBitLength()));
+        insertPacketEvent(this, packet, PEK_QUEUED, queueingTime, packetEvent);
+        increaseTimeTag<QueueingTimeTag>(packet, queueingTime, queueingTime);
+
         emit(packetPulledSignal, packet);
         animatePullPacket(packet, outputGate);
         updateDisplayString();
@@ -122,9 +145,45 @@ Packet *LeoccQueue::pullPacket(cGate *gate)
 bool LeoccQueue::isIcmpOverloaded() const
 {
     return (packetCapacity != -1 && icmpQueue.getLength() > packetCapacity) ||
-           (dataCapacity != b(-1) && b(queue.getBitLength()) > dataCapacity);
+           (dataCapacity != b(-1) && b(icmpQueue.getBitLength()) > dataCapacity);
 }
 
+Packet *LeoccQueue::getIcmpPacket(int index) const
+{
+    if (index < 0 || index >= icmpQueue.getLength())
+        throw cRuntimeError("index %i out of range", index);
+    return check_and_cast<Packet *>(icmpQueue.get(index));
+}
+
+bool LeoccQueue::bothQueuesEmpty() const
+{
+    return icmpQueue.isEmpty() && queue.isEmpty();
+}
+
+Packet *LeoccQueue::peekPreferredPacket() const
+{
+    // Priority: ICMP first
+    if (!icmpQueue.isEmpty()) {
+        // front() returns cPacket*; Packet derives from cPacket in INET
+        return check_and_cast<Packet *>(icmpQueue.front());
+    }
+    if (!queue.isEmpty()) {
+        return check_and_cast<Packet *>(queue.front());
+    }
+    return nullptr;
+}
+
+bool LeoccQueue::canPullSomePacket(cGate *gate) const
+{
+    // "Some packet available?" means either queue has something
+    return !bothQueuesEmpty();
+}
+
+Packet *LeoccQueue::canPullPacket(cGate *gate) const
+{
+    // Return the packet that *would* be pulled (but do not remove it here)
+    return peekPreferredPacket();
+}
 
 } // namespace queueing
 } // namespace inet
