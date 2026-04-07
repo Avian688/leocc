@@ -16,7 +16,7 @@ namespace tcp {
 #define MIN_REXMIT_TIMEOUT     0.2   // 1s
 #define MAX_REXMIT_TIMEOUT     240   // 2 * MSL (RFC 1122)
 
-double LeoccFlavour::PACING_GAIN_CYCLE[] = {5.0 / 4, 3.0 / 4, 1, 1, 1, 1, 1, 1};
+double LeoccFlavour::PACING_GAIN_CYCLE[] = {1.25, 0.75, 1, 1, 1, 1, 1, 1};
 
 Register_Class(LeoccFlavour);
 
@@ -74,6 +74,7 @@ void LeoccFlavour::established(bool active)
         state->m_targetCWnd = state->snd_cwnd;
         state->m_minPipeCwnd = 4 * state->m_segmentSize;
         state->m_sendQuantum = 1 * state->m_segmentSize;
+
 
         initRoundCounting();
         initFullPipe();
@@ -262,7 +263,7 @@ void LeoccFlavour::updateAckAggregation()
     LeoccConnection::RateSample rs = dynamic_cast<LeoccConnection*>(conn)->getRateSample();
     uint32_t expectedAcked;
     uint32_t extraAck;
-    uint32_t epochProp;
+    double epochProp;
     if (!state->m_extraAckedGain || rs.m_ackedSacked <= 0 || rs.m_delivered < 0)
     {
         return;
@@ -280,7 +281,7 @@ void LeoccFlavour::updateAckAggregation()
     }
 
     epochProp = simTime().dbl() - state->m_ackEpochTime.dbl();
-    expectedAcked = m_maxBwFilter.GetBest() * epochProp;
+    expectedAcked = static_cast<uint32_t>(m_maxBwFilter.GetBest() * epochProp);
 
     if (state->m_ackEpochAcked <= expectedAcked ||
         (state->m_ackEpochAcked + rs.m_ackedSacked >= state->m_ackEpochAckedResetThresh))
@@ -502,7 +503,8 @@ void LeoccFlavour::handleProbeRTT()
     uint32_t totalBytes = state->m_delivered + dynamic_cast<LeoccConnection*>(conn)->getBytesInFlight();
     state->m_appLimited = false;
 
-    if (state->m_probeRttDoneStamp == 0 && dynamic_cast<LeoccConnection*>(conn)->getBytesInFlight() <= state->m_minPipeCwnd)
+    const uint32_t bytesInFlight = dynamic_cast<LeoccConnection*>(conn)->getBytesInFlight();
+    if (state->m_probeRttDoneStamp == 0 && bytesInFlight <= probeRttCwnd())
     {
         state->m_probeRttDoneStamp = simTime() + state->m_probeRttDuration;
         state->m_probeRttRoundDone = false;
@@ -515,7 +517,6 @@ void LeoccFlavour::handleProbeRTT()
         if (state->m_roundStart)
         {
             state->m_probeRttRoundDone = true;
-           //TODO may need fixing!
             state->m_minRtt = state->m_lastRtt;
             state->m_minRttStamp = simTime();
 
@@ -528,7 +529,9 @@ void LeoccFlavour::handleProbeRTT()
 
             if (state->local_reconfiguration_trigger) {
                 //minmax_reset for Leocc. Resets filter after local_reconfiguration
-                m_maxBwFilter = MaxBandwidthFilter_t(state->m_bandwidthWindowLength, state->snd_cwnd / rtt.dbl(), state->reconfiguration_max_bw);
+                m_maxBwFilter = MaxBandwidthFilter_t(state->m_bandwidthWindowLength, 0, state->m_roundCount);
+                if (state->reconfiguration_max_bw > 0)
+                    m_maxBwFilter.Update(state->reconfiguration_max_bw, state->m_roundCount);
             }
         }
     }
@@ -810,40 +813,41 @@ void LeoccFlavour::receivedDuplicateAck()
 
 void LeoccFlavour::leoccMain()
 {
-    //simtime_t min_rtt_us =  dynamic_cast<tcp::Leocc*>(conn->getTcpMain())->getMinRtt();
-    global_reconfiguration_trigger = dynamic_cast<tcp::Leocc*>(conn->getTcpMain())->getReconfigurationState();
+    auto *leoccMain = dynamic_cast<tcp::Leocc *>(conn->getTcpMain());
+    global_reconfiguration_trigger = leoccMain->getReconfigurationState();
+    min_rtt_fluctuation = leoccMain->getMinRttFluctation();
 
-    state->m_delivered = dynamic_cast<TcpPacedConnection*>(conn)->getDelivered();
-    if (global_reconfiguration_trigger && !state->local_reconfiguration_trigger) {
+    state->m_delivered = dynamic_cast<TcpPacedConnection *>(conn)->getDelivered();
+
+    if (global_reconfiguration_trigger && !state->local_reconfiguration_trigger){
         state->local_reconfiguration_trigger = true;
     }
-
     if (m_state == LeoccMode_t::LEOCC_DYNAMIC_CRUISE && !(state->m_delivered < state->m_nextRoundDelivered)) {
         state->p_post_bw = state->p_post_bw + var_Q;
-        state->kalman_gain_bw = state->p_post_bw / (state->p_post_bw + var_R);
-        state->bw_hat_post = ((state->kalman_gain_bw) * state->bw_hat_post + state->kalman_gain_bw * state->rtt_cnt_max_bw);
-        state->p_post_bw = (state->kalman_gain_bw) * state->p_post_bw;
+        state->kalman_gain_bw = static_cast<double>(state->p_post_bw) / (state->p_post_bw + var_R);
+        state->bw_hat_post = static_cast<uint32_t>(((1.0 - state->kalman_gain_bw) * state->bw_hat_post) + (state->kalman_gain_bw * state->rtt_cnt_max_bw));
+        state->p_post_bw = static_cast<uint32_t>((1.0 - state->kalman_gain_bw) * state->p_post_bw);
     }
 
     updateModelAndState();
 
-    //TODO Verify that state->m_lastRtt = rs->rtt_us
     if (state->m_lastRtt > 0) {
         state->p_post_rtt = state->p_post_rtt + var_Q_rtt;
-        state->kalman_gain_rtt = state->p_post_rtt / (state->p_post_rtt + var_R_rtt);
-        state->rtt_hat_post = ((state->kalman_gain_rtt) * state->rtt_hat_post + state->kalman_gain_rtt * state->m_lastRtt);
-        state->p_post_rtt = (state->kalman_gain_rtt) * state->p_post_rtt;
+        state->kalman_gain_rtt = static_cast<double>(state->p_post_rtt) / (state->p_post_rtt + var_R_rtt);
+        state->rtt_hat_post =
+            ((1.0 - state->kalman_gain_rtt) * state->rtt_hat_post) +
+            (state->kalman_gain_rtt * state->m_lastRtt);
+        state->p_post_rtt = static_cast<uint32_t>((1.0 - state->kalman_gain_rtt) * state->p_post_rtt);
     }
 
     state->use_max_filter = true;
-
-    if (min_rtt_fluctuation > 0 && state->rtt_hat_post >= delta_rtt + state->m_minRtt + min_rtt_fluctuation && !state->local_reconfiguration_trigger && m_state == LeoccMode_t::LEOCC_DYNAMIC_CRUISE)
-    {
+    if (min_rtt_fluctuation > 0 && state->rtt_hat_post >= delta_rtt + state->m_minRtt + min_rtt_fluctuation && !state->local_reconfiguration_trigger && m_state == LeoccMode_t::LEOCC_DYNAMIC_CRUISE) {
         state->use_max_filter = false;
         state->useBwHatPost = true;
-        PACING_GAIN_CYCLE[0] = 21 / 20;
-    } else {
-        PACING_GAIN_CYCLE[0] = 5 / 4;
+        PACING_GAIN_CYCLE[0] = 1.05;
+    }
+    else {
+        PACING_GAIN_CYCLE[0] = 1.25;
     }
 
     updateControlParameters();

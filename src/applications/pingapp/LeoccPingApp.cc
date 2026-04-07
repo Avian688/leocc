@@ -116,6 +116,7 @@ void LeoccPingApp::processPingResponse(int originatorId, int seqNo, Packet *pack
         simtime_t cur_time_ms = simTime();
         bool global_reconfiguration_trigger = leoccMain->getReconfigurationState();
         if (global_reconfiguration_trigger && reconfiguration_trigger_time_ms > 0 && cur_time_ms >= reconfiguration_trigger_time_ms + global_reconfiguration_trigger_duration) {
+            std::cout << "\n TCP APP SETTING RECONFIGURATION STATE TO FALSE AT: " << simTime() << endl;
             leoccMain->setReconfigurationState(false);
         }
 
@@ -143,6 +144,7 @@ void LeoccPingApp::processPingResponse(int originatorId, int seqNo, Packet *pack
 
         if(last_time > SIMTIME_ZERO) {
             if((simTime() - last_time) > reconfiguration_threshold) {
+                std::cout << "\n TCP APP SETTING RECONFIGURATION STATE TO TRUE AT: " << simTime() << endl;
                 leoccMain->setReconfigurationState(true);
                 reconfiguration_trigger_time_ms = cur_time_ms;
                 reconfiguration_rtt_ms = rtt;

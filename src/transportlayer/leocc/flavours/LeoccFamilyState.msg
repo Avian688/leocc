@@ -141,27 +141,27 @@ struct LeoccFamilyStateVariables extends TcpTahoeRenoFamilyStateVariables
 
     const uint32_t leocc_bw_probe_max_rounds = 63;
 
-    const double leocc_ecn_reprobe_gain = 1 / 2;
+    const double leocc_ecn_reprobe_gain = 1.0 / 2.0;
 
-    const double leocc_loss_thresh = 2/100;
+    const double leocc_loss_thresh = 2.0 / 100.0;
 
     const double leocc_ecn_thresh = 0.5;
 
-    const double leocc_beta = (1 * 30 / 100);
+    const double leocc_beta = 30.0 / 100.0;
 
-    const double leocc_inflight_headroom = 15 / 100;
+    const double leocc_inflight_headroom = 15.0 / 100.0;
 
     const uint32_t leocc_full_loss_cnt = 6;
 
-    const double leocc_full_bw_thresh = 1 * 5 / 4;
+    const double leocc_full_bw_thresh = 5.0 / 4.0;
 
     const uint32_t leocc_full_bw_cnt = 3;
 
-    const double leocc_startup_pacing_gain = 1 * 277 / 100 + 1;
+    const double leocc_startup_pacing_gain = 277.0 / 100.0 + 1.0;
 
     const uint32_t leocc_startup_cwnd_gain = 2;
 
-    const double leocc_drain_gain = 1 * 1000 / 2885;
+    const double leocc_drain_gain = 1000.0 / 2885.0;
 
     const uint32_t leocc_bw_probe_cwnd_gain = 1;
 
@@ -179,4 +179,3 @@ cplusplus(LeoccFamilyStateVariables) {{
     virtual std::string str() const override;
     virtual std::string detailedInfo() const override;
 }}
-

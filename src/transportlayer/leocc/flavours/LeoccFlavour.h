@@ -91,7 +91,7 @@ class LeoccFlavour : public LeoccFamily
     LeoccState tcp_state = LeoccState::CA_OPEN;
     MaxBandwidthFilter_t m_maxBwFilter;
 
-    double leocc_probe_rtt_cwnd_gain = 1/2;
+    double leocc_probe_rtt_cwnd_gain = 0.5;
     simtime_t delta_thresh = 0.045; //values
     simtime_t delta_rtt = 0;
     bool global_reconfiguration_trigger = false;
