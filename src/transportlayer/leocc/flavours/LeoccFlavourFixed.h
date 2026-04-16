@@ -1,6 +1,5 @@
 //
-// Comparison-only LeoCC flavour with proposed fixes.
-// This file is intentionally not referenced by the build or NED files.
+// Linux-faithful LeoCC flavour for OMNeT++.
 //
 
 #ifndef TRANSPORTLAYER_LEOCC_FLAVOURS_LEOCCFLAVOURFIXED_H_
@@ -14,11 +13,7 @@ namespace tcp {
 class LeoccFlavourFixed : public LeoccFlavour
 {
   protected:
-    bool previousGlobalReconfigurationTrigger = false;
-
-    virtual void updateBottleneckBandwidth() override;
     virtual void handleProbeRTT() override;
-    virtual void leoccMain() override;
 };
 
 } // namespace tcp
