@@ -84,7 +84,7 @@ class LeoccFlavour : public LeoccFamily
     static simsignal_t restoreCwndSignal;
 
     simtime_t rtt;
-    boost::random::mt19937 gen{6};
+    boost::random::mt19937 gen;
     uint32_t m_extraAcked[2] = {0, 0};
 
     LeoccMode_t m_state{LeoccMode_t::LEOCC_STARTUP};
@@ -209,4 +209,3 @@ class LeoccFlavour : public LeoccFamily
 } // namespace inet
 
 #endif
-
