@@ -171,12 +171,11 @@ void LeoccFlavour::receivedDataAck(uint32_t firstSeqAcked)
         if (seqGE(state->snd_una, state->recoveryPoint)) {
 
             EV_INFO   << " Loss Recovery terminated.\n";
-            state->snd_cwnd = state->ssthresh;
             state->m_packetConservation = false;
             tcp_state = CA_OPEN;
+            // Linux BBRv1 restores the saved cwnd; ssthresh is not part of BBR cwnd control.
             restoreCwnd();
 
-            //state->snd_cwnd = state->ssthresh;
             state->lossRecovery = false;
             conn->emit(lossRecoverySignal, 0);
             EV_INFO << "lossRecovery = false, m_packetConservation = false, state->snd_cwnd = " << state->snd_cwnd << "\n";
@@ -802,7 +801,6 @@ void LeoccFlavour::receivedDuplicateAck()
                     dynamic_cast<TcpPacedConnection*>(conn)->updateInFlight();
                     tcp_state = CA_RECOVERY;
                     EV_DETAIL << " recoveryPoint=" << state->recoveryPoint;
-                    //state->snd_cwnd = state->ssthresh;
                     state->snd_cwnd = dynamic_cast<LeoccConnection*>(conn)->getBytesInFlight() + std::max(dynamic_cast<TcpPacedConnection*>(conn)->getLastAckedSackedBytes(), state->m_segmentSize);
                     state->m_packetConservation = true;
                     dynamic_cast<TcpPacedConnection*>(conn)->doRetransmit();
