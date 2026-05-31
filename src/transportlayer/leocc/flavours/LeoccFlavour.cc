@@ -797,7 +797,15 @@ void LeoccFlavour::receivedDuplicateAck()
                     state->lossRecovery = true;
                     conn->emit(recoveryPointSignal, state->recoveryPoint);
 
-                    dynamic_cast<TcpPacedConnection*>(conn)->setSackedHeadLost();
+                    if (rackLoss) {
+                        // RACK should already have marked lost packets.
+                        dynamic_cast<TcpPacedConnection*>(conn)->updateInFlight();
+                    }
+                    else {
+                        // dupthresh / highRxt fallback path
+                        dynamic_cast<TcpPacedConnection*>(conn)->setSackedHeadLost();
+                        dynamic_cast<TcpPacedConnection*>(conn)->updateInFlight();
+                    }
                     dynamic_cast<TcpPacedConnection*>(conn)->updateInFlight();
                     tcp_state = CA_RECOVERY;
                     EV_DETAIL << " recoveryPoint=" << state->recoveryPoint;
