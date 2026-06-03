@@ -831,7 +831,7 @@ void LeoccFlavour::receivedDuplicateAck()
                     conn->emit(recoveryPointSignal, state->recoveryPoint);
 
                     // dupthresh / highRxt fallback path
-                    dynamic_cast<TcpPacedConnection*>(conn)->setSackedHeadLost();
+                    dynamic_cast<TcpPacedConnection*>(conn)->setSackedHeadLostIfRackDisabled();
                     dynamic_cast<TcpPacedConnection*>(conn)->updateInFlight();
                     tcp_state = CA_RECOVERY;
                     EV_DETAIL << " recoveryPoint=" << state->recoveryPoint;
